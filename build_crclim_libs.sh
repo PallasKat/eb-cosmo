@@ -10,7 +10,8 @@ showUsage()
     echo "-t target      build target: cpu or gpu"
     echo "-i path        install path for the modules (EB prefix, the directory must exist)"
     echo "-x bit-repro   try to build a CPU-GPU bit-reproducible model"
-    echo "-z             clean any existing repository, reclone it, and create new source archive"
+    echo "-z             clean any existing repository, reclone it, create new source archive and"
+    echo "               force reinstallation"
 }
 
 showConfig()
@@ -150,14 +151,6 @@ getDycore()
     tar -zcf "${targz}" -C "${cosmoDir}" dycore VERSION STELLA_VERSION
 }
 
-cleanup()
-{    
-    echo "MOCK CLEANUP"
-#    load module file
-#    rm -rf $EBROOTXXX
-#    rm module file
-}
-
 sedIt()
 {
     proj=$1
@@ -214,13 +207,20 @@ fi
 ebStella="STELLA_${PROJECT}-CrayGNU-18.08-double${bitreprodSuffix}.eb"
 ebDycore="DYCORE_${PROJECT}_${TARGET}-CrayGNU-18.08-double${bitreprodSuffix}.eb"
 
+ebOpt=""
+
+if [ "${CLEANUP}" == "ON" ]
+then
+  ebOpt="--force"
+fi
+
 # using EB to compile Stella and the Dycore
 pInfo "Compiling and installing ${PROJECT} Stella"
-eb ${ebStella} -r
+eb ${ebStella} ${ebOpt} -r
 contOrExit "STELLA EB" $?
 
 pInfo "Compiling and installing ${PROJECT} ${TARGET} Dycore"
-eb ${ebDycore} -r
+eb ${ebDycore} ${ebOpt} -r
 contOrExit "DYCORE EB" $?
 
 # prepare the new option.lib files

@@ -2,7 +2,7 @@
 
 showUsage()
 {
-    echo "Usage: $(basename $0) -p project -t target -k ksize -f kflat [-x (bitrepro)]"
+    echo "Usage: $(basename $0) -p project -t target -k ksize -f kflat [-x (bitrepro)] [-q (force project)]"
 }
 
 showConfig()
@@ -16,9 +16,10 @@ showConfig()
     echo "Architecture       : ${TARGET}"
     echo "CUDA               : ${CUDA}"
     echo "Project            : ${PROJECT}"
+    echo "Force project      : ${FORCEPROJ}"
     echo "K-size             : ${KSIZE}"
     echo "K-flat             : ${KFLAT}"
-    echo "Bit-reproducible   : ${BITREPROD}"
+    echo "Bit-reproducible   : ${BITREPROD}"    
     echo "Version            : ${VERSION}"
     echo "Version suffix     : ${VERSION_SUFFIX}"
     echo "==========================================================="
@@ -32,9 +33,10 @@ parseOptions()
     KSIZE=OFF
     KFLAT=OFF
     BITREPROD=OFF
+    FORCEPROJ=OFF
     TARGET=OFF    
     
-    while getopts ":p:t:k:f:xh" opt; do
+    while getopts ":p:t:k:f:xqh" opt; do
         case $opt in
         p)
             PROJECT=$OPTARG
@@ -51,6 +53,9 @@ parseOptions()
         x)
             BITREPROD=ON
             ;;
+        q)
+            FORCEPROJ=ON
+            ;;                
         h)
             showUsage
             exit 0
@@ -69,17 +74,22 @@ parseOptions()
     # ==============================================
     # PROJECT
     # ==============================================
-    if [ "${PROJECT^^}" = "CRCLIM" ]
+    if [ "${FORCEPROJ}" == "ON" ]
     then
-        PROJECT="CRCLIM"
-    elif [ "${PROJECT^^}" = "CORDEX" ]
-    then
-        PROJECT="CORDEX"
+        PROJECT="${PROJECT^^}"
     else
-        echo "Incorrect target provided: ${PROJECT}"
-        echo "Project can only be CRCLIM or CORDEX"
-        showUsage
-        exit 1
+        if [ "${PROJECT^^}" = "CRCLIM" ]
+        then
+            PROJECT="CRCLIM"
+        elif [ "${PROJECT^^}" = "CORDEX" ]
+        then
+            PROJECT="CORDEX"
+        else
+            echo "Incorrect target provided: ${PROJECT}"
+            echo "Project can only be CRCLIM or CORDEX"
+            showUsage
+            exit 1
+        fi
     fi
 
     # ==============================================
