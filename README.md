@@ -1,6 +1,6 @@
 # Building Cosmo with EB and the build script
 
-This is a temporary tutorial to allow people to build their own version of crCLIM COSMO-pompa (CrCLIM or Cordex setup).
+This is a temporary tutorial to allow people to build their own version of crCLIM COSMO-pompa. Either a CrCLIM, a Cordex, or a personalized setup can be build.
 The steps are only describing on how to compile the model **on DAINT with the CRAY compiler** .
 
 The idea is that now each one will: 
