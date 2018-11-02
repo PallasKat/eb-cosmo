@@ -214,11 +214,11 @@ sedIt()
 
     optFile="Option.lib.${targ,,}"
 
-    sed "s@%STELLADIR%@\"${stellaOpt}\"@g" "${template}" > "${optFile}"
+    sed "s@%STELLADIR%@${stellaOpt}@g" "${template}" > "${optFile}"
     contOrExit "SED STELLA" $?
-    sed -i "s@%DYCOREDIR%@\"${dycoreOpt}\"@g" "${optFile}"
+    sed -i "s@%DYCOREDIR%@${dycoreOpt}@g" "${optFile}"
     contOrExit "SED DYCORE" $?
-    sed -i "s@%CUDA%@\"${cudaOpt}\"@g" "${optFile}"
+    sed -i "s@%CUDA%@${cudaOpt}@g" "${optFile}"
     contOrExit "SED CUDA" $?
 }
 
