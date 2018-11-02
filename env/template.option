@@ -1,4 +1,4 @@
-# Options.lib.gpu
+# Options.lib.(c|g)pu
 
 # global libraries and includes
 LIB      = $(LDFLAGS)

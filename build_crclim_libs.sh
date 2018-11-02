@@ -205,12 +205,21 @@ sedIt()
 
     stellaOpt="EBROOTSTELLA_${proj}"
     dycoreOpt="EBROOTDYCORE_${proj}_${targ}"
+    
+    cudaOpt=""
+    if [ "${targ}" == "GPU" ]
+    then
+        cudaOpt="CUDA"
+    fi
+
     optFile="Option.lib.${targ,,}"
 
     sed "s@%STELLADIR%@\"${stellaOpt}\"@g" "${template}" > "${optFile}"
     contOrExit "SED STELLA" $?
     sed -i "s@%DYCOREDIR%@\"${dycoreOpt}\"@g" "${optFile}"
     contOrExit "SED DYCORE" $?
+    sed -i "s@%CUDA%@\"${cudaOpt}\"@g" "${optFile}"
+    contOrExit "SED CUDA" $?
 }
 
 # ===========================================================
