@@ -212,7 +212,7 @@ sedIt()
         cudaOpt="CUDA"
     fi
 
-    optFile="Option.lib.${targ,,}"
+    optFile="Options.lib.${targ,,}"
 
     sed "s@%STELLADIR%@${stellaOpt}@g" "${template}" > "${optFile}"
     contOrExit "SED STELLA" $?
