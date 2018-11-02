@@ -74,6 +74,7 @@ parseOptions()
     # ==============================================
     # PROJECT
     # ==============================================
+    echo ${FORCEPROJ}
     if [ "${FORCEPROJ}" == "ON" ]
     then
         PROJECT="${PROJECT^^}"
@@ -85,7 +86,7 @@ parseOptions()
         then
             PROJECT="CORDEX"
         else
-            echo "Incorrect target provided: ${PROJECT}"
+            echo "Incorrect project name provided: ${PROJECT}"
             echo "Project can only be CRCLIM or CORDEX"
             showUsage
             exit 1
@@ -129,21 +130,8 @@ source utils.sh
 parseOptions "$@"
 showConfig
 
-stellaEB="STELLA_${PROJECT}-CrayGNU-18.08-double${VERSION_SUFFIX}.eb"
-dycoreEB="DYCORE_${PROJECT}_${TARGET}-CrayGNU-18.08-double${VERSION_SUFFIX}.eb"
+stellaEBConf
+dycoreEBConf
 
 echo ${stellaEB}
 echo ${dycoreEB}
-
-sed "s@%PROJ%@${PROJECT}${PROJECT_SUFFIX}@g" "template_stella.eb" > "${stellaEB}"
-sed -i "s@%VER%@${VERSION}@g" "${stellaEB}" >> "${stellaEB}"
-sed -i "s@%VSUFFIX%@${VERSION_SUFFIX}@g" "${stellaEB}" >> "${stellaEB}"
-sed -i "s@%KS%@${KSIZE}@g" "${stellaEB}" >> "${stellaEB}"
-sed -i "s@%KF%@${KFLAT}@g" "${stellaEB}" >> "${stellaEB}"
-sed -i "s@%BR%@${BITREPROD}@g" "${stellaEB}" >> "${stellaEB}"
-
-sed "s@%PROJ%@${PROJECT}${PROJECT_SUFFIX}@g" "template_dycore.eb" > "${dycoreEB}"
-sed -i "s@%ARCH%@${TARGET}@g" "${dycoreEB}" >> "${dycoreEB}"
-sed -i "s@%VER%@${VERSION}@g" "${dycoreEB}" >> "${dycoreEB}"
-sed -i "s@%VSUFFIX%@${VERSION_SUFFIX}@g" "${dycoreEB}" >> "${dycoreEB}"
-sed -i "s@%BR%@${BITREPROD}@g" "${dycoreEB}" >> "${dycoreEB}"

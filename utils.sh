@@ -55,3 +55,24 @@ contOrExit()
         exit 1
     fi
 }
+
+stellaEBConf()
+{    
+    export stellaEB="STELLA_${PROJECT}-CrayGNU-18.08-double${VERSION_SUFFIX}.eb"
+    sed "s@%PROJ%@${PROJECT}${PROJECT_SUFFIX}@g" "template_stella.eb" > "${stellaEB}"
+    sed -i "s@%VER%@${VERSION}@g" "${stellaEB}" >> "${stellaEB}"
+    sed -i "s@%VSUFFIX%@${VERSION_SUFFIX}@g" "${stellaEB}" >> "${stellaEB}"
+    sed -i "s@%KS%@${KSIZE}@g" "${stellaEB}" >> "${stellaEB}"
+    sed -i "s@%KF%@${KFLAT}@g" "${stellaEB}" >> "${stellaEB}"
+    sed -i "s@%BR%@${BITREPROD}@g" "${stellaEB}" >> "${stellaEB}"
+}
+
+dycoreEBConf()
+{
+    export dycoreEB="DYCORE_${PROJECT}_${TARGET}-CrayGNU-18.08-double${VERSION_SUFFIX}.eb"
+    sed "s@%PROJ%@${PROJECT}${PROJECT_SUFFIX}@g" "template_dycore.eb" > "${dycoreEB}"
+    sed -i "s@%ARCH%@${TARGET}@g" "${dycoreEB}" >> "${dycoreEB}"
+    sed -i "s@%VER%@${VERSION}@g" "${dycoreEB}" >> "${dycoreEB}"
+    sed -i "s@%VSUFFIX%@${VERSION_SUFFIX}@g" "${dycoreEB}" >> "${dycoreEB}"
+    sed -i "s@%BR%@${BITREPROD}@g" "${dycoreEB}" >> "${dycoreEB}"
+}

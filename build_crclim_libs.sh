@@ -2,16 +2,20 @@
 
 showUsage()
 {
-    echo "Usage: $(basename $0) -p project -t target -i path [-x] [-z]"
+    echo "Usage: $(basename $0) -p project -t target -k ksize -f kflat -i path [-x] [-q] [-z]"
     echo ""
     echo "Arguments:"
     echo "-h             show this help message and exit"
     echo "-p project     build project: crclim or cordex"
     echo "-t target      build target: cpu or gpu"
     echo "-i path        install path for the modules (EB prefix, the directory must exist)"
+    echo "-k ksize       number of k-levels (STELLA)"
+    echo "-f kflat       value of k-flat (STELLA)"
+    echo "-i path        install path for the modules (EB prefix, the directory must exist)"
     echo "-x bit-repro   try to build a CPU-GPU bit-reproducible model"
-    echo "-z             clean any existing repository, reclone it, create new source archive and"
-    echo "               force reinstallation"
+    echo "-q force proj  force project name without check (crCLIM or CORDEX)"
+    echo "-z             clean any existing repository, reclone it, create new source archive"
+    echo "               and force reinstallation"
 }
 
 showConfig()
@@ -24,6 +28,9 @@ showConfig()
     echo "User               : $(whoami)"
     echo "Architecture       : ${TARGET}"
     echo "Project            : ${PROJECT}"
+    echo "Force project      : ${FORCEPROJ}"
+    echo "K-size             : ${KSIZE}"
+    echo "K-flat             : ${KFLAT}"
     echo "Bit-reproducible   : ${BITREPROD}"
     echo "Cleanup            : ${CLEANUP}"
     echo "Install path       : ${INSTPATH}"
@@ -36,10 +43,13 @@ parseOptions()
     PROJECT=OFF
     TARGET=OFF
     INSTPATH=OFF
+    KSIZE=OFF
+    KFLAT=OFF
     CLEANUP=OFF
+    FORCEPROJ=OFF
     BITREPROD=OFF
     
-    while getopts ":p:t:i:hxz" opt; do
+    while getopts ":p:t:i:k:f:xzqh" opt; do
         case $opt in
         p)
             PROJECT=$OPTARG
@@ -50,10 +60,19 @@ parseOptions()
         i)
             INSTPATH=$OPTARG
             ;;
+        k)
+            KSIZE=$OPTARG
+            ;;
+        f)
+            KFLAT=$OPTARG
+            ;;
         h)
             showUsage
             exit 0
             ;;
+        q)
+            FORCEPROJ=ON
+            ;;    
         x)
             BITREPROD=ON
             ;;
@@ -76,23 +95,44 @@ parseOptions()
     then
         pErr "Incorrect target provided: ${TARGET}"
         pErr "Target can only be CPU or GPU"
-        showUsage
         exit 1
     fi
 
     PROJECT=${PROJECT^^}
-    if [ "${PROJECT}" != "CRCLIM" ] && [ "${PROJECT}" != "CORDEX" ]
+    if [ "${FORCEPROJ}" == "OFF" ]
     then
-        pErr "Incorrect target provided: ${PROJECT}"
-        pErr "Project can only be CRCLIM or CORDEX"
-        showUsage
-        exit 1
+        if [ "${PROJECT}" != "CRCLIM" ] && [ "${PROJECT}" != "CORDEX" ]
+        then
+            pErr "Incorrect project name provided: ${PROJECT}"
+            pErr "Project can only be CRCLIM or CORDEX"
+            exit 1
+        fi
+
+        if [ "${PROJECT}" == "CRCLIM" ]
+        then
+            pWarning "Overriding K-levels and K-flats with CRCLIM values"
+            KSIZE=60
+            KFLAT=19
+        else # -> if [ "${PROJECT}" == "CORDEX" ]
+            pWarning "Overriding K-levels and K-flats with CORDEX values"
+            KSIZE=40
+            KFLAT=8
+        fi
+    else
+        if [ "${KSIZE}" == "OFF" ] || [ "${KFLAT}" == "OFF" ]
+        then
+            pErr "Provide value for k-size and k-flat:"
+            pErr "K-size: ${KSIZE}"
+            pErr "K-flat: ${KFLAT}"
+            exit 1
+        fi
     fi
 
     if [ ! -d "${INSTPATH}" ]
     then
         pErr "Incorrect path provided: ${INSTPATH}"
         pErr "Please create the install directory BEFORE installing the libs"
+        exit 1
     fi
 }
 
@@ -181,8 +221,24 @@ source utils.sh
 parseOptions "$@"
 showConfig
 
-pInfo "Generating EB config files"
-source eb_crclim.sh
+# ==============================================
+# VERSION & VERSION SUFFIX
+# ==============================================
+VERSION=${PROJECT,,}
+if [ "${BITREPROD}" == "ON" ]
+then
+    PROJECT_SUFFIX="_BITREPROD"
+    VERSION_SUFFIX="-bitreprod"
+else
+    PROJECT_SUFFIX=""
+    VERSION_SUFFIX=""
+fi
+
+stellaEBConf
+dycoreEBConf
+
+pInfo "STELLA EB: ${stellaEB}"
+pInfo "DYCORE EB: ${dycoreEB}"
 
 pInfo "Exporting variables and load modules"
 exportVar "${INSTPATH}"
@@ -197,30 +253,21 @@ pInfo "Compiling and installing grib libraries (CSCS EB config)"
 eb grib_api-1.13.1-CrayCCE-18.08.eb -r
 eb libgrib1_crclim-a1e4271-CrayCCE-18.08.eb -r
 
-# generating EB config filename
-bitreprodSuffix=""
-if [ "${BITREPROD}" == "ON" ]
-then
-    bitreprodSuffix="-bitreprod"
-fi
-
-ebStella="STELLA_${PROJECT}-CrayGNU-18.08-double${bitreprodSuffix}.eb"
-ebDycore="DYCORE_${PROJECT}_${TARGET}-CrayGNU-18.08-double${bitreprodSuffix}.eb"
-
 ebOpt=""
-
 if [ "${CLEANUP}" == "ON" ]
 then
   ebOpt="--force"
 fi
 
 # using EB to compile Stella and the Dycore
-pInfo "Compiling and installing ${PROJECT} Stella"
-eb ${ebStella} ${ebOpt} -r
+pInfo "Compiling and installing ${PROJECT} Stella using"
+pInfo "${stellaEB}"
+eb ${stellaEB} ${ebOpt} -r
 contOrExit "STELLA EB" $?
 
-pInfo "Compiling and installing ${PROJECT} ${TARGET} Dycore"
-eb ${ebDycore} ${ebOpt} -r
+pInfo "Compiling and installing ${PROJECT} ${TARGET} Dycore using"
+pInfo "${dycoreEB}"
+eb ${dycoreEB} ${ebOpt} -r
 contOrExit "DYCORE EB" $?
 
 # prepare the new option.lib files
