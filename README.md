@@ -83,7 +83,7 @@ $ ./build_crclim_libs.sh -p rce -t gpu -i /scratch/username/install/ -k 74 -f 43
 and note that **the install directory must exist before executing the script**.
 Once the script has run it will generate the file `install/export_load_gpu.txt` or `install/export_load_cpu.txt`, respectively, that will tell you the variables to export and modules to load:
 ```
-less install/export_load_gpu.txt
+eb-cosmo/$ less install/export_load_gpu.txt
 ```
 ```
 export EASYBUILD_PREFIX=/scratch/username/install
@@ -198,6 +198,7 @@ DYCORE_CRCLIM_GPU-CrayGNU-18.08-double.eb
 ```
 They respectively contain the information to build Stella and the Dycore with EB.
 You can deduce from the filenames that some are for the crCLIM or Cordex setup, and some target the CPU or GPU.
+If you want to use a configuration that differs from the crCLIM or Cordex setup, you will need to generate EB config files.
 
 The difference compared to the classic build scripts is that EB is going to make Stella and the Dycore available as modules on Daint. 
 So once it's installed, you load the needed Dycore depending on the configuration you need for Cosmo.
@@ -219,17 +220,29 @@ To invoke the script you should provide at least:
   * the targeted architecture (i.e. cpu or gpu) 
   * and an install path. It's important to note that the **install path must exist before executing the script**.
 
+For a custom configuration you should provide
+ * a name for the project
+ * the targeted architure (i.e. cpu or gpu)
+ * the specification of klevel and kflat
+ * and an install path. It's important to note that the **install path must exist before executing the script**.
+
 The command line help describes what you should pass to the script:
 ```
 eb-cosmo/$ ./build_crclim_libs.sh -h
-Usage: build_crclim_libs.sh -p project -t target [-z]
+Usage: build_crclim_libs.sh -p project -t target -k ksize -f kflat -i path [-x] [-q] [-z]
 
 Arguments:
--h           show this help message and exit
--p project   build project: crclim or cordex
--t target    build target: cpu or gpu
--i path      install path for the modules (EB prefix, the directory must exist)
--z           clean any existing repository, reclone it, and create new source archive
+-h             show this help message and exit
+-p project     build project: crclim or cordex
+-t target      build target: cpu or gpu
+-i path        install path for the modules (EB prefix, the directory must exist)
+-k ksize       number of k-levels (STELLA)
+-f kflat       value of k-flat (STELLA)
+-i path        install path for the modules (EB prefix, the directory must exist)
+-x bit-repro   try to build a CPU-GPU bit-reproducible model
+-q force proj  force project name without check (crCLIM or CORDEX)
+-z             clean any existing repository, reclone it, create new source archive
+               and force reinstallation
 ```
 
 The script fetch (clone) the `crclim` branch of the `stella` and the `cosmo-pompa` repositories from the `C2SM-RCM` organization.
@@ -254,37 +267,39 @@ The correct version is selected according the values provided with the flags:
   * `-p cordex -t cpu` : Stella with KSIZE=40 and KFLAT=8  and a CPU Dycore
   * `-p cordex -t gpu` : Stella with KSIZE=40 and KFLAT=8  and a GPU Dycore 
 
-No other version are currently available.
-If you need another one, please open a "GitHub issue" on that repository.
-
+If you want to have a custom build you additionally need to provide the `-q` option, otherwise the script will stop. Plus the desired `KFLAT` and `KLEVEL` configuration.
+E.g. for a version with 74 vertical levels and kflat of 44 for GPU in `/scratch/username/install/` with the project name "rce":
+```
+$ ./build_crclim_libs.sh -p rce -t gpu -i /scratch/username/install/ -k 74 -f 43 -q -z
+```
 The script starts to print the requested configuration.
 For example:
 ```
-eb-cosmo/$ ./build_crclim_libs.sh -t gpu -p crclim
+eb-cosmo/$ ./build_crclim_libs.sh -t gpu -p crclim -i /scratch/username/install/
 ===========================================================
-Compiling STELLA and the C++ DyCore as modules
+Compiling STELLA and the C++ Dycore as modules
 ===========================================================
-Date             : sam oct 20 23:05:46 CEST 2018
-Machine          : daint666
-User             : username
-Architecture
-   CPU           : OFF
-   GPU           : ON
-Project
-   crCRLIM       : ON
-   Cordex        : OFF
-Cleanup          : OFF
-Install path     : /scratch/username/install/
+Date               : Fri Nov  2 15:46:14 CET 2018
+Machine            : daint106
+User               : username
+Architecture       : GPU
+Project            : CRCLIM
+Force project      : OFF
+K-size             : 60
+K-flat             : 19
+Bit-reproducible   : OFF
+Cleanup            : OFF
+Install path       : /scratch/username/install/
 ===========================================================
 ```
 so you should double check that everything is fine.
 
-At end of the compilation, the script prints what you should export and what to load:
+At end of the compilation, the script generates a file that tells you what you should export and what to load:
 ```
-# EXECUTE THE FOLLOWING COMMANDS IN YOUR TERMINAL #
-# BEFORE INSTALLING COSMO                         #
-
-export EASYBUILD_PREFIX=/scratch/username/install/
+eb-cosmo/$ less install/export_load_gpu.txt
+```
+```
+export EASYBUILD_PREFIX=/scratch/username/install
 export EASYBUILD_BUILDPATH=/tmp/username/easybuild
 module load daint-gpu
 module load EasyBuild-custom
@@ -346,6 +361,13 @@ In our case we're only interested by the one pointing to the installed Dycore.
 
 Once this is done, we can almost build Cosmo the classical way, that is to say with build script.
 
+Again, if you chose to build your customized STELLA version, the modules will look like:
+```
+----------------- /scratch/username/eb-cosmo/install/modules/all ------------------------
+Serialbox/2.4.1-CrayGNU-18.08                 libgrib1_crclim/a1e4271-CrayCCE-18.08
+DYCORE_RCE_GPU/rce-CrayGNU-18.08-double       STELLA_RCE/rce-CrayGNU-18.08-double           grib_api/1.13.1-CrayCCE-18.08
+
+```
 Change to the directory containing the Cosmo source you want to compile.
 For example, we assume that the Cosmo we want to compile is here:
 ```
@@ -368,57 +390,17 @@ You also need update the corresponding options file:
   * `Options.lib.cpu` if you plan to compile an executable for CPU
   * `Options.lib.gpu` if you plan to compile an executable for GPU
 
-where you have to update the path to Stella and the Dycore.
-Find the corresponding section in the file and replace them according your setup:
-  * The crCLIM setup targeting the CPU in `Options.lib.cpu`
-```
-# STELLA library
-STELLA   = $(EBROOTSTELLA_CRCLIM)
-STELLAL  = -L$(EBROOTSTELLA_CRCLIM)/lib -lCommunicationFramework -ljson -lStella -lgcl -lStellaUtils -lSharedInfrastructure -lstdc++
-STELLAI  =
+that provides the path to Stella and the Dycore.
+Copy the file generates by the script into the cosmo folder:
 
-# Dycore library
-DYCORE   = $(EBROOTDYCORE_CRCLIM_CPU)
-DYCOREL  = -L$(EBROOTDYCORE_CRCLIM_CPU)/lib -lDycoreWrapper -lDycore
-DYCOREI  =
+* The setup targeting the CPU in `Options.lib.cpu`
 ```
-  * The Cordex setup targeting the CPU in `Options.lib.cpu`
+cosmo-pompa/cosmo/$ cp /scratch/username/eb-cosmo/Options.lib.cpu .
 ```
-# STELLA library
-STELLA   = $(EBROOTSTELLA_CORDEX)
-STELLAL  = -L$(EBROOTSTELLA_CORDEX)/lib -lCommunicationFramework -ljson -lStella -lgcl -lStellaUtils -lSharedInfrastructure -lstdc++
-STELLAI  =
-
-# Dycore library
-DYCORE   = $(EBROOTDYCORE_CORDEX_CPU)
-DYCOREL  = -L$(EBROOTDYCORE_CORDEX_CPU)/lib -lDycoreWrapper -lDycore
-DYCOREI  =
+* The  setup targeting the GPU in `Options.lib.gpu`
 ```
-  * The crCLIM setup targeting the GPU in `Options.lib.gpu`
+cosmo-pompa/cosmo/$ cp /scratch/username/eb-cosmo/Options.lib.cpu .
 ```
-# STELLA library
-STELLA   = $(EBROOTSTELLA_CRCLIM)
-STELLAL  = -L$(EBROOTSTELLA_CRCLIM)/lib -lCommunicationFrameworkCUDA -ljson -lStellaCUDA -lgcl -lStellaUtils -lSharedInfrastructureCUDA -lstdc++
-STELLAI  =
-
-# Dycore library
-DYCORE   = $(EBROOTDYCORE_CRCLIM_GPU)
-DYCOREL  = -L$(EBROOTDYCORE_CRCLIM_GPU)/lib -lDycoreWrapperCUDA -lDycoreCUDA
-DYCOREI  =
-```
-  * The Cordex setup targeting the GPU in `Options.lib.gpu`
-```
-# STELLA library
-STELLA   = $(EBROOTSTELLA_CORDEX)
-STELLAL  = -L$(EBROOTSTELLA_CORDEX)/lib -lCommunicationFrameworkCUDA -ljson -lStellaCUDA -lgcl -lStellaUtils -lSharedInfrastructureCUDA -lstdc++
-STELLAI  =
-
-# Dycore library
-DYCORE   = $(EBROOTDYCORE_CORDEX_GPU)
-DYCOREL  = -L$(EBROOTDYCORE_CORDEX_GPU)/lib -lDycoreWrapperCUDA -lDycoreCUDA
-DYCOREI  =
-```
-
 Finally execute the build script as usual.
 For example:
 ```
