@@ -1,76 +1,39 @@
 #!/bin/bash
 
-pWarning()
-{
-  msg=$1
-  YELLOW='\033[1;33m'
-  NC='\033[0m'
-  echo -e "${YELLOW}[WARNING]${NC} ${msg}"
-}
-
-pInfo()
-{
-  msg=$1
-  BLUE='\033[1;34m'
-  NC='\033[0m'
-  echo -e "${BLUE}[INFO]${NC} ${msg}"
-}
-
-pOk()
-{
-  msg=$1
-  GREEN='\033[1;32m'
-  NC='\033[0m'
-  echo -e "${GREEN}[OK]${NC} ${msg}"
-}
-
-pErr()
-{
-    msg=$1
-    RED='\033[0;31m'
-    NC='\033[0m'
-	echo -e "${RED}[ERROR]${NC} ${msg}"
-}
-
-exitError()
-{
-    RED='\033[0;31m'
-    NC='\033[0m'
-	echo -e "${RED}EXIT WITH ERROR${NC}"
-	echo "ERROR $1: $3" 1>&2
-	echo "ERROR     LOCATION=$0" 1>&2
-	echo "ERROR     LINE=$2" 1>&2
-	exit "$1"
-}
-
 showUsage()
 {
-    echo "Usage: $(basename $0) -p project -t target -i path [-z]"
+    echo "Usage: $(basename $0) -p project -t target -k ksize -f kflat -i path [-x] [-q] [-z]"
     echo ""
     echo "Arguments:"
-    echo "-h           show this help message and exit"
-    echo "-p project   build project: crclim or cordex"
-    echo "-t target    build target: cpu or gpu"
-    echo "-i path      install path for the modules (EB prefix, the directory must exist)"
-    echo "-z           clean any existing repository, reclone it, and create new source archive"
+    echo "-h             show this help message and exit"
+    echo "-p project     build project: crclim or cordex"
+    echo "-t target      build target: cpu or gpu"
+    echo "-i path        install path for the modules (EB prefix, the directory must exist)"
+    echo "-k ksize       number of k-levels (STELLA)"
+    echo "-f kflat       value of k-flat (STELLA)"
+    echo "-i path        install path for the modules (EB prefix, the directory must exist)"
+    echo "-x bit-repro   try to build a CPU-GPU bit-reproducible model"
+    echo "-q force proj  force project name without check (crCLIM or CORDEX)"
+    echo "-z             clean any existing repository, reclone it, create new source archive"
+    echo "               and force reinstallation"
 }
 
 showConfig()
 {
     echo "==========================================================="
-    echo "Compiling STELLA and the C++ DyCore as modules"
+    echo "Compiling STELLA and the C++ Dycore as modules"
     echo "==========================================================="
-    echo "Date             : $(date)"
-    echo "Machine          : ${HOSTNAME}"
-    echo "User             : $(whoami)"
-    echo "Architecture"
-    echo "   CPU           : ${CPU}"
-    echo "   GPU           : ${GPU}"
-    echo "Project"
-    echo "   crCRLIM       : ${CRCLIM}"
-    echo "   Cordex        : ${CORDEX}"
-    echo "Cleanup          : ${CLEANUP}"
-    echo "Install path     : ${INSTPATH}"
+    echo "Date               : $(date)"
+    echo "Machine            : ${HOSTNAME}"
+    echo "User               : $(whoami)"
+    echo "Architecture       : ${TARGET}"
+    echo "Project            : ${PROJECT}"
+    echo "Force project      : ${FORCEPROJ}"
+    echo "K-size             : ${KSIZE}"
+    echo "K-flat             : ${KFLAT}"
+    echo "Bit-reproducible   : ${BITREPROD}"
+    echo "Cleanup            : ${CLEANUP}"
+    echo "Install path       : ${INSTPATH}"
     echo "==========================================================="
 }
 
@@ -78,15 +41,15 @@ parseOptions()
 {
     # set defaults
     PROJECT=OFF
-    CRCLIM=OFF
-    CORDEX=OFF
     TARGET=OFF
     INSTPATH=OFF
-    GPU=OFF
-    CPU=OFF
+    KSIZE=OFF
+    KFLAT=OFF
     CLEANUP=OFF
+    FORCEPROJ=OFF
+    BITREPROD=OFF
     
-    while getopts ":p:t:i:hz" opt; do
+    while getopts ":p:t:i:k:f:xzqh" opt; do
         case $opt in
         p)
             PROJECT=$OPTARG
@@ -97,9 +60,21 @@ parseOptions()
         i)
             INSTPATH=$OPTARG
             ;;
+        k)
+            KSIZE=$OPTARG
+            ;;
+        f)
+            KFLAT=$OPTARG
+            ;;
         h)
             showUsage
             exit 0
+            ;;
+        q)
+            FORCEPROJ=ON
+            ;;    
+        x)
+            BITREPROD=ON
             ;;
         z)
             CLEANUP=ON
@@ -115,36 +90,49 @@ parseOptions()
         esac
     done
 
-    if [ "${TARGET,,}" = "cpu" ]
+    TARGET=${TARGET^^}
+    if [ "${TARGET}" != "CPU" ] && [ "${TARGET}" != "GPU" ]
     then
-        CPU=ON
-    elif [ "${TARGET,,}" = "gpu" ]
-    then
-        GPU=ON
-    else
         pErr "Incorrect target provided: ${TARGET}"
         pErr "Target can only be CPU or GPU"
-        showUsage
         exit 1
     fi
 
-    if [ "${PROJECT,,}" = "crclim" ]
+    PROJECT=${PROJECT^^}
+    if [ "${FORCEPROJ}" == "OFF" ]
     then
-        CRCLIM=ON
-    elif [ "${PROJECT,,}" = "cordex" ]
-    then
-        CORDEX=ON
+        if [ "${PROJECT}" != "CRCLIM" ] && [ "${PROJECT}" != "CORDEX" ]
+        then
+            pErr "Incorrect project name provided: ${PROJECT}"
+            pErr "Project can only be CRCLIM or CORDEX"
+            exit 1
+        fi
+
+        if [ "${PROJECT}" == "CRCLIM" ]
+        then
+            pWarning "Overriding K-levels and K-flats with CRCLIM values"
+            KSIZE=60
+            KFLAT=19
+        else # -> if [ "${PROJECT}" == "CORDEX" ]
+            pWarning "Overriding K-levels and K-flats with CORDEX values"
+            KSIZE=40
+            KFLAT=8
+        fi
     else
-        pErr "Incorrect target provided: ${PROJECT}"
-        pErr "Project can only be CRCLIM or CORDEX"
-        showUsage
-        exit 1
+        if [ "${KSIZE}" == "OFF" ] || [ "${KFLAT}" == "OFF" ]
+        then
+            pErr "Provide value for k-size and k-flat:"
+            pErr "K-size: ${KSIZE}"
+            pErr "K-flat: ${KFLAT}"
+            exit 1
+        fi
     fi
 
     if [ ! -d "${INSTPATH}" ]
     then
         pErr "Incorrect path provided: ${INSTPATH}"
         pErr "Please create the install directory BEFORE installing the libs"
+        exit 1
     fi
 }
 
@@ -203,16 +191,69 @@ getDycore()
     tar -zcf "${targz}" -C "${cosmoDir}" dycore VERSION STELLA_VERSION
 }
 
+sedIt()
+{
+    proj=$1
+    targ=$2    
+
+    template="env/template.option"
+    if [ ! -f ${template} ]
+    then
+        pErr "File ${template} not found "
+        exit 1
+    fi
+
+    stellaOpt="EBROOTSTELLA_${proj}"
+    dycoreOpt="EBROOTDYCORE_${proj}_${targ}"
+    
+    cudaOpt=""
+    if [ "${targ}" == "GPU" ]
+    then
+        cudaOpt="CUDA"
+    fi
+
+    optFile="Options.lib.${targ,,}"
+
+    sed "s@%STELLADIR%@${stellaOpt}@g" "${template}" > "${optFile}"
+    contOrExit "SED STELLA" $?
+    sed -i "s@%DYCOREDIR%@${dycoreOpt}@g" "${optFile}"
+    contOrExit "SED DYCORE" $?
+    sed -i "s@%CUDA%@${cudaOpt}@g" "${optFile}"
+    contOrExit "SED CUDA" $?
+}
+
+# ===========================================================
+# MAIN PROGRAM
+# ===========================================================
+source utils.sh
+
 parseOptions "$@"
 showConfig
 
+# ==============================================
+# VERSION & VERSION SUFFIX
+# ==============================================
+VERSION=${PROJECT,,}
+if [ "${BITREPROD}" == "ON" ]
+then
+    PROJECT_SUFFIX="_BITREPROD"
+    VERSION_SUFFIX="-bitreprod"
+else
+    PROJECT_SUFFIX=""
+    VERSION_SUFFIX=""
+fi
+
+stellaEBConf
+dycoreEBConf
+
+pInfo "STELLA EB: ${stellaEB}"
+pInfo "DYCORE EB: ${dycoreEB}"
+
 pInfo "Exporting variables and load modules"
-#installPath="/scratch/snx1600/charpill/post-update/install/"
 exportVar "${INSTPATH}"
 loadModule
 
-# get crclim branch reprositories and  
-# create corresponding source archives
+# get crclim branch reprositories and create corresponding source archives
 pInfo "Getting source code and creating archives"
 getStella "crclim" "C2SM-RCM"
 getDycore "crclim" "C2SM-RCM"
@@ -221,37 +262,45 @@ pInfo "Compiling and installing grib libraries (CSCS EB config)"
 eb grib_api-1.13.1-CrayCCE-18.08.eb -r
 eb libgrib1_crclim-a1e4271-CrayCCE-18.08.eb -r
 
-if [ "${CRCLIM}" == "ON" ]
+ebOpt=""
+if [ "${CLEANUP}" == "ON" ]
 then
-    pInfo "Compiling and installing crCLIM Stella"
-    eb STELLA_CRCLIM-CrayGNU-18.08-double.eb -r
-    if [ "${CPU}" == "ON" ]
-    then
-        pInfo "Compiling and installing crCLIM CPU Dycore"
-        eb DYCORE_CRCLIM_CPU-CrayGNU-18.08-double.eb -r
-    else
-        pInfo "Compiling and installing crCLIM GPU Dycore"
-        eb DYCORE_CRCLIM_GPU-CrayGNU-18.08-double.eb -r
-    fi
-else
-    pInfo "Compiling and installing Cordex Stella"
-    eb STELLA_CORDEX-CrayGNU-18.08-double.eb -r
-    if [ "${CPU}" == "ON" ]
-    then
-        pInfo "Compiling and installing Cordex CPU Dycore"
-        eb DYCORE_CORDEX_CPU-CrayGNU-18.08-double.eb -r
-    else
-        pInfo "Compiling and installing Cordex GPU Dycore"
-        eb DYCORE_CORDEX_GPU-CrayGNU-18.08-double.eb -r
-    fi
+  ebOpt="--force"
 fi
 
-echo ""
-echo "# EXECUTE THE FOLLOWING COMMANDS IN YOUR TERMINAL #"
-echo "# BEFORE INSTALLING COSMO                         #"
-echo ""
-echo "export EASYBUILD_PREFIX=${INSTPATH}"
-echo "export EASYBUILD_BUILDPATH=/tmp/${USER}/easybuild"
-echo "module load daint-gpu"
-echo "module load EasyBuild-custom"
-echo ""
+# using EB to compile Stella and the Dycore
+pInfo "Compiling and installing ${PROJECT} Stella using"
+pInfo "${stellaEB}"
+eb ${stellaEB} ${ebOpt} -r
+contOrExit "STELLA EB" $?
+
+pInfo "Compiling and installing ${PROJECT} ${TARGET} Dycore using"
+pInfo "${dycoreEB}"
+eb ${dycoreEB} ${ebOpt} -r
+contOrExit "DYCORE EB" $?
+
+# prepare the new option.lib files
+sedIt ${PROJECT} ${TARGET}
+
+# prepare an info "export and load" file for the user
+if [ "${TARGET}" == "CPU" ]
+then
+cat <<EOT > ${INSTPATH}/export_load_cpu.txt
+export EASYBUILD_PREFIX=${INSTPATH}
+export EASYBUILD_BUILDPATH=/tmp/${USER}/easybuild
+module load daint-gpu
+module load EasyBuild-custom
+EOT
+fi
+
+if [ "${TARGET}" == "GPU" ]
+then
+cat <<EOT > ${INSTPATH}/export_load_gpu.txt
+export EASYBUILD_PREFIX=${INSTPATH}
+export EASYBUILD_BUILDPATH=/tmp/${USER}/easybuild
+module load daint-gpu
+module load EasyBuild-custom
+EOT
+fi
+
+exit 0
